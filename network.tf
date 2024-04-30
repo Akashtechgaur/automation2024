@@ -5,9 +5,10 @@ resource "aws_vpc" "this" {
   enable_dns_support   = var.dns_support_enabled
 
   tags = {
-    Name = var.vpc_name
+    Name = local.vpc_name_local
   }
 }
+
 
 resource "aws_subnet" "private_subnet" {
   for_each          = { for index, az_name in data.aws_availability_zones.this.names : index => az_name }
@@ -15,16 +16,17 @@ resource "aws_subnet" "private_subnet" {
   cidr_block        = cidrsubnet(var.cidr_for_vpc, length(data.aws_availability_zones.this.names) > 3 ? 4 : 3, each.key)
   availability_zone = each.value
   tags = {
-    name = "private-subnet-${each.key}"
+    Name = "private-subnet-${each.key}"
   }
 }
+
 resource "aws_subnet" "public_subnet" {
   for_each          = { for index, az_name in data.aws_availability_zones.this.names : index => az_name }
   vpc_id            = aws_vpc.this.id
   cidr_block        = cidrsubnet(var.cidr_for_vpc, length(data.aws_availability_zones.this.names) > 3 ? 4 : 3, each.key + length(data.aws_availability_zones.this.names))
   availability_zone = each.value
   tags = {
-    name = "public-subnet-${each.key}"
+    Name = "public-subnet-${each.key}"
   }
 }
 
@@ -58,30 +60,27 @@ resource "aws_internet_gateway" "this" {
 }
 
 resource "aws_route_table_association" "private_subnet_association" {
-  for_each       = toset([for each_subnet in aws_subnet.private_subnet : each_subnet.id])
-  subnet_id      = each.key
+  for_each       = { for index, each_subnet in aws_subnet.private_subnet : index => each_subnet.id }
+  subnet_id      = each.value
   route_table_id = aws_default_route_table.this.id
 }
 
 resource "aws_route_table_association" "public_subnet_association" {
-  for_each       = toset([for each_subnet in aws_subnet.public_subnet : each_subnet.id])
-  subnet_id      = each.key
-  route_table_id = aws_default_route_table.this.id
+  for_each       = { for index, each_subnet in aws_subnet.public_subnet : index => each_subnet.id }
+  subnet_id      = each.value
+  route_table_id = aws_route_table.this.id
 }
 
-resource "aws_nat_gateway" "this" {
-  allocation_id = aws_eip.this.id
-  subnet_id     = element([for each_subnet in aws_subnet.public_subnet : each_subnet.id], 0)
+# resource "aws_nat_gateway" "this" {
+#   allocation_id = aws_eip.this.id
+#   subnet_id     = "[for each_subnet in aws_subnet.public_subnet: each_subnet.id]"
+#   tags = {
+#     Name = "nat_gw_${var.vpc_name}"
+#   }
 
-  tags = {
-    Name = "nat_gw_${var.vpc_name}"
-  }
+#   depends_on = [aws_internet_gateway.this]
+# }
 
-  # To ensure proper ordering, it is recommended to add an explicit dependency
-  # on the Internet Gateway for the VPC.
-  depends_on = [aws_internet_gateway.this]
-}
-
-resource "aws_eip" "this" {
-  domain = "vpc"
-}
+# resource "aws_eip" "this" {
+#   domain = "vpc"
+# }

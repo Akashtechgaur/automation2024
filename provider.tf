@@ -6,6 +6,13 @@ terraform {
       version = "5.38.0"
     }
   }
+  backend "s3" {
+    bucket   = "terraformstatefileak"
+    key      = "terraform-state-file"
+    region   = "us-east-1"
+    role_arn = "arn:aws:iam::373507016913:role/EC2ACCESS1"
+
+  }
 }
 
 provider "aws" {
